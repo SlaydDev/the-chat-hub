@@ -84,12 +84,6 @@ button {
   cursor: pointer;
 }
 
-.msg img, .msg video {
-  max-width: 100%;
-  margin-top: 4px;
-  border-radius: 8px;
-}
-
 @media (max-width: 480px) {
   #top { font-size: 1em; }
   #bar input[type="text"] { padding: 8px; }
@@ -106,104 +100,68 @@ button {
 
 <div id="bar">
   <input id="msg" type="text" placeholder="Message">
-  <input id="fileInput" type="file" accept="image/*,video/*">
   <button onclick="send()">Send</button>
 </div>
 
 <script>
 let username;
 
-// always ask username on every visit
+// Ask for username on every visit
 function askUsername(){
   username = prompt("Choose name: Captain or Midnight") || "Captain";
   document.getElementById('usernameDisplay').textContent = username;
 }
 askUsername();
 
-// Load messages from localStorage
-let messages = JSON.parse(localStorage.getItem('messages') || "[]");
+const API_URL = "https://script.google.com/macros/s/AKfycbygwfzbB8Z43jYQHPxwkdlF0nK5slelRtvNisAqRkInigqzSc52kP5FcAdpt6MRTlE/exec"; // replace with your Google Sheets Web App URL
 
-function saveMessages() {
-  localStorage.setItem('messages', JSON.stringify(messages));
-}
-
+// Add a message to the chat
 function addMessage(m){
   const chat = document.getElementById('chat');
   const div = document.createElement('div');
   div.classList.add('msg');
   div.classList.add(m.sender === username ? 'me' : 'other');
-
-  // text message
-  if(m.text) div.textContent = m.sender + ": " + m.text;
-
-  // image/video
-  if(m.file){
-    const ext = m.file.type.split('/')[0];
-    if(ext==='image'){
-      const img = document.createElement('img');
-      img.src = m.file.data;
-      div.appendChild(img);
-    } else if(ext==='video'){
-      const vid = document.createElement('video');
-      vid.src = m.file.data;
-      vid.controls = true;
-      div.appendChild(vid);
-    }
-  }
-
+  div.textContent = m.sender + ": " + m.message;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
 
-// Load existing messages
-messages.forEach(addMessage);
-
-function send(){
-  const input = document.getElementById('msg');
-  const fileInput = document.getElementById('fileInput');
-  const text = input.value.trim();
-
-  let fileData = null;
-
-  if(fileInput.files.length > 0){
-    const file = fileInput.files[0];
-    const reader = new FileReader();
-    reader.onload = function(e){
-      const msgObj = {
-        sender: username,
-        text: text || null,
-        file: {data: e.target.result, type: file.type},
-        timestamp: Date.now()
-      };
-      messages.push(msgObj);
-      addMessage(msgObj);
-      saveMessages();
-      input.value = "";
-      fileInput.value = "";
-    };
-    reader.readAsDataURL(file);
-  } else if(text){
-    const msgObj = {
-      sender: username,
-      text: text,
-      timestamp: Date.now()
-    };
-    messages.push(msgObj);
-    addMessage(msgObj);
-    saveMessages();
-    input.value = "";
+// Load messages from Google Sheets
+async function loadMessages(){
+  try {
+    const res = await fetch(API_URL);
+    const msgs = await res.json();
+    document.getElementById('chat').innerHTML = '';
+    msgs.forEach(addMessage);
+  } catch(err){
+    console.error("Failed to load messages:", err);
   }
 }
 
-// auto delete messages older than 24h
-function cleanupOldMessages(){
-  const cutoff = Date.now() - 24*60*60*1000;
-  messages = messages.filter(m => m.timestamp > cutoff);
-  saveMessages();
-  document.getElementById('chat').innerHTML = '';
-  messages.forEach(addMessage);
+// Send a message to Google Sheets
+async function send(){
+  const input = document.getElementById('msg');
+  const text = input.value.trim();
+  if(!text) return;
+
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({sender: username, message: text})
+    });
+    input.value = "";
+    loadMessages();
+  } catch(err){
+    console.error("Failed to send message:", err);
+  }
 }
-setInterval(cleanupOldMessages, 60*60*1000); // every hour
+
+// Auto-refresh chat every 2 seconds
+setInterval(loadMessages, 2000);
+
+// Load messages on page load
+loadMessages();
 </script>
 
 </body>
