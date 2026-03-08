@@ -1,162 +1,209 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Captain Midnight Chat</title>
-
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Captain & Midnight Chat</title>
 <style>
-body{
-margin:0;
-font-family:sans-serif;
-background:#0f0f0f;
-color:white;
-display:flex;
-flex-direction:column;
-height:100vh;
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background: #2c2f33;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
 }
 
-#top{
-padding:10px;
-text-align:center;
-border-bottom:1px solid #333;
-font-weight:bold;
+#top {
+  background: #23272a;
+  padding: 12px;
+  font-weight: bold;
+  text-align: center;
+  border-bottom: 1px solid #000;
+  font-size: 1.2em;
 }
 
-#chat{
-flex:1;
-overflow-y:auto;
-padding:10px;
-display:flex;
-flex-direction:column;
-gap:6px;
+#usernameDisplay {
+  text-align: center;
+  margin: 6px 0;
+  font-size: 1em;
+  color: #7289da;
 }
 
-.msg{
-max-width:70%;
-padding:8px 12px;
-border-radius:14px;
-word-wrap:break-word;
+#chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.me{
-align-self:flex-end;
-background:#2a84ff;
+.msg {
+  max-width: 70%;
+  padding: 8px 12px;
+  border-radius: 14px;
+  word-wrap: break-word;
 }
 
-.other{
-align-self:flex-start;
-background:#333;
+.me {
+  align-self: flex-end;
+  background: #7289da;
 }
 
-#bar{
-display:flex;
-padding:8px;
-gap:6px;
-border-top:1px solid #333;
+.other {
+  align-self: flex-start;
+  background: #99aab5;
+  color: #000;
 }
 
-input{
-flex:1;
-padding:10px;
-border-radius:10px;
-border:none;
-outline:none;
-background:#222;
-color:white;
+#bar {
+  display: flex;
+  padding: 8px;
+  gap: 6px;
+  border-top: 1px solid #000;
 }
 
-button{
-padding:10px 14px;
-border:none;
-border-radius:10px;
-background:#2a84ff;
-color:white;
-cursor:pointer;
+input[type="text"] {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+  background: #40444b;
+  color: #fff;
+}
+
+button {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #7289da;
+  color: white;
+  cursor: pointer;
+}
+
+.msg img, .msg video {
+  max-width: 100%;
+  margin-top: 4px;
+  border-radius: 8px;
+}
+
+@media (max-width: 480px) {
+  #top { font-size: 1em; }
+  #bar input[type="text"] { padding: 8px; }
+  button { padding: 8px 10px; }
+  .msg { padding: 6px 10px; }
 }
 </style>
 </head>
-
 <body>
 
-<div id="top">Captain • Midnight Chat</div>
-
+<div id="top">Captain & Midnight Chat</div>
+<div id="usernameDisplay"></div>
 <div id="chat"></div>
 
 <div id="bar">
-<input id="msg" placeholder="message">
-<button onclick="send()">Send</button>
+  <input id="msg" type="text" placeholder="Message">
+  <input id="fileInput" type="file" accept="image/*,video/*">
+  <button onclick="send()">Send</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <script>
+let username;
 
-const supabase = window.supabase.createClient(
-"https://vwqyragtlidgvloztqjj.supabase.co",
-"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3cXlyYWd0bGlkZ3Zsb3p0cWpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MzA0NjMsImV4cCI6MjA4ODUwNjQ2M30.tIwQBFRbIRrXezIlzwmp0VUuomAldxJKJwwgFaMDvEs"
-)
+// always ask username on every visit
+function askUsername(){
+  username = prompt("Choose name: Captain or Midnight") || "Captain";
+  document.getElementById('usernameDisplay').textContent = username;
+}
+askUsername();
 
-let sender = localStorage.getItem("sender")
+// Load messages from localStorage
+let messages = JSON.parse(localStorage.getItem('messages') || "[]");
 
-if(!sender){
-sender = prompt("Choose name: Captain or Midnight")
-localStorage.setItem("sender",sender)
+function saveMessages() {
+  localStorage.setItem('messages', JSON.stringify(messages));
 }
 
 function addMessage(m){
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.classList.add('msg');
+  div.classList.add(m.sender === username ? 'me' : 'other');
 
-const chat=document.getElementById("chat")
+  // text message
+  if(m.text) div.textContent = m.sender + ": " + m.text;
 
-const div=document.createElement("div")
-div.classList.add("msg")
+  // image/video
+  if(m.file){
+    const ext = m.file.type.split('/')[0];
+    if(ext==='image'){
+      const img = document.createElement('img');
+      img.src = m.file.data;
+      div.appendChild(img);
+    } else if(ext==='video'){
+      const vid = document.createElement('video');
+      vid.src = m.file.data;
+      vid.controls = true;
+      div.appendChild(vid);
+    }
+  }
 
-if(m.sender===sender){
-div.classList.add("me")
-}else{
-div.classList.add("other")
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
 }
 
-div.textContent=m.sender+": "+m.message
+// Load existing messages
+messages.forEach(addMessage);
 
-chat.appendChild(div)
-chat.scrollTop=chat.scrollHeight
+function send(){
+  const input = document.getElementById('msg');
+  const fileInput = document.getElementById('fileInput');
+  const text = input.value.trim();
+
+  let fileData = null;
+
+  if(fileInput.files.length > 0){
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const msgObj = {
+        sender: username,
+        text: text || null,
+        file: {data: e.target.result, type: file.type},
+        timestamp: Date.now()
+      };
+      messages.push(msgObj);
+      addMessage(msgObj);
+      saveMessages();
+      input.value = "";
+      fileInput.value = "";
+    };
+    reader.readAsDataURL(file);
+  } else if(text){
+    const msgObj = {
+      sender: username,
+      text: text,
+      timestamp: Date.now()
+    };
+    messages.push(msgObj);
+    addMessage(msgObj);
+    saveMessages();
+    input.value = "";
+  }
 }
 
-async function send(){
-
-const input=document.getElementById("msg")
-
-if(!input.value) return
-
-await supabase
-.from("chat_messages")
-.insert([{sender:sender,message:input.value}])
-
-input.value=""
+// auto delete messages older than 24h
+function cleanupOldMessages(){
+  const cutoff = Date.now() - 24*60*60*1000;
+  messages = messages.filter(m => m.timestamp > cutoff);
+  saveMessages();
+  document.getElementById('chat').innerHTML = '';
+  messages.forEach(addMessage);
 }
-
-async function load(){
-
-const {data}=await supabase
-.from("chat_messages")
-.select("*")
-.order("id",{ascending:true})
-
-data.forEach(addMessage)
-
-}
-
-supabase
-.channel("chat")
-.on("postgres_changes",
-{event:"INSERT",schema:"public",table:"chat_messages"},
-payload=>{
-addMessage(payload.new)
-})
-.subscribe()
-
-load()
-
+setInterval(cleanupOldMessages, 60*60*1000); // every hour
 </script>
 
 </body>
